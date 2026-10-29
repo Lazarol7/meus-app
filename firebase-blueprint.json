@@ -1,0 +1,312 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile with technical ratings, preferences and licensing status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "defense": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "passing": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "finishing": { "type": "integer", "minimum": 1, "maximum": 5 }
+          }
+        },
+        "language": { "type": "string", "enum": ["pt", "en", "xangana"] },
+        "accountStatus": { "type": "string", "enum": ["free", "paid", "active", "pending", "suspended"] },
+        "paidStatus": { "type": "string", "enum": ["paid", "unpaid", "pending"] },
+        "subscriptionStatus": { "type": "string", "enum": ["active", "pending", "expired", "none"] },
+        "subscriptionExpiresAt": { "type": "integer" },
+        "lastPaymentAt": { "type": "integer" },
+        "lastPaymentType": { "type": "string" },
+        "hasLiveAccess": { "type": "boolean" },
+        "purchasedLiveMatchIds": { "type": "array" },
+        "communityLeagueId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["uid", "displayName", "email", "ratings", "language", "createdAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Soccer match details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "integer" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "address": { "type": "string" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "price": { "type": "number" },
+        "maxPlayers": { "type": "integer" },
+        "status": { "type": "string", "enum": ["open", "full", "finished", "cancelled"] },
+        "organizerId": { "type": "string" },
+        "description": { "type": "string" },
+        "scoreA": { "type": "integer" },
+        "scoreB": { "type": "integer" }
+      },
+      "required": ["id", "date", "location", "price", "maxPlayers", "status", "organizerId"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "User registration for a match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchId": { "type": "string" },
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["confirmed", "waiting"] },
+        "paid": { "type": "boolean" },
+        "registeredAt": { "type": "integer" }
+      },
+      "required": ["id", "matchId", "userId", "status", "paid", "registeredAt"]
+    },
+    "MatchStats": {
+      "title": "Match Stats",
+      "description": "Player statistics for a match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchId": { "type": "string" },
+        "playerId": { "type": "string" },
+        "goals": { "type": "integer" },
+        "assists": { "type": "integer" },
+        "isMOTM": { "type": "boolean" }
+      },
+      "required": ["id", "matchId", "playerId", "goals", "assists", "isMOTM"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "matchId": { "type": "string" },
+        "type": { "type": "string", "enum": ["invite", "waiting_list_promotion", "match_cancelled", "payment_confirmed", "subscription_active", "live_ticket_unlocked"] },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "read"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "userId", "type", "status", "createdAt"]
+    },
+    "Club": {
+      "title": "Club",
+      "description": "Soccer club details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logoURL": { "type": "string" },
+        "president": { "type": "string" },
+        "coach": { "type": "string" },
+        "description": { "type": "string" },
+        "foundedAt": { "type": "integer" },
+        "location": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "name", "createdBy"]
+    },
+    "MatchPhoto": {
+      "title": "MatchPhoto",
+      "description": "Photos and snapshots taken during a match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchId": { "type": "string" },
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploadedByName": { "type": "string" },
+        "uploadedByPhoto": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "matchId", "url", "uploadedBy", "uploadedByName", "createdAt"]
+    },
+    "CommunityNotification": {
+      "title": "CommunityNotification",
+      "description": "Public community notifications and announcements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "priority": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "likes": { "type": "integer" }
+      },
+      "required": ["id", "title", "message", "authorName", "createdAt"]
+    },
+    "ManualScorer": {
+      "title": "ManualScorer",
+      "description": "Manually added top scorers with player name and goal count",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "playerName": { "type": "string" },
+        "goals": { "type": "integer" },
+        "assists": { "type": "integer" },
+        "clubName": { "type": "string" },
+        "clubLogoURL": { "type": "string" },
+        "league": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "matchesPlayed": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "playerName", "goals", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Match details"
+    },
+    "/registrations/{regId}": {
+      "schema": "Registration",
+      "description": "Match registrations"
+    },
+    "/stats/{statId}": {
+      "schema": "MatchStats",
+      "description": "Match statistics"
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/clubs/{clubId}": {
+      "schema": "Club",
+      "description": "Club details"
+    },
+    "/match_photos/{photoId}": {
+      "schema": "MatchPhoto",
+      "description": "Match snapshots and gallery photos"
+    },
+    "/community_notifications/{notifId}": {
+      "schema": "CommunityNotification",
+      "description": "Public community notices visible to anyone"
+    },
+    "ManualScorer": {
+      "title": "ManualScorer",
+      "description": "Manual top scorers entered with player name and goals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "playerName": { "type": "string" },
+        "goals": { "type": "integer" },
+        "assists": { "type": "integer" },
+        "clubName": { "type": "string" },
+        "clubLogoURL": { "type": "string" },
+        "league": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "matchesPlayed": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "playerName", "goals", "createdAt"]
+    },
+    "LiveChatMessage": {
+      "title": "LiveChatMessage",
+      "description": "Real-time match live stream chat comments and emoji reactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "text": { "type": "string", "maxLength": 300 },
+        "badge": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "matchId", "userId", "userName", "text", "createdAt"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "User complaints, suggestions, and feedback responded by the Administrator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 3000 },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "answered", "resolved"] },
+        "adminResponse": { "type": "string", "maxLength": 3000 },
+        "respondedAt": { "type": "integer" },
+        "respondedBy": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "userId", "userName", "userEmail", "title", "message", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Match details"
+    },
+    "/registrations/{regId}": {
+      "schema": "Registration",
+      "description": "Match registrations"
+    },
+    "/stats/{statId}": {
+      "schema": "MatchStats",
+      "description": "Match statistics"
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/clubs/{clubId}": {
+      "schema": "Club",
+      "description": "Club details"
+    },
+    "/match_photos/{photoId}": {
+      "schema": "MatchPhoto",
+      "description": "Match snapshots and gallery photos"
+    },
+    "/community_notifications/{notifId}": {
+      "schema": "CommunityNotification",
+      "description": "Public community notices visible to anyone"
+    },
+    "/manual_scorers/{scorerId}": {
+      "schema": "ManualScorer",
+      "description": "Manual top scorers entered with player name and goals"
+    },
+    "/live_chat/{messageId}": {
+      "schema": "LiveChatMessage",
+      "description": "Real-time live stream chat messages"
+    },
+    "/complaints/{complaintId}": {
+      "schema": "Complaint",
+      "description": "Community user complaints, support inquiries, and administrator responses"
+    }
+  }
+}

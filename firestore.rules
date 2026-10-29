@@ -1,0 +1,375 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: uid
+// Fields:
+//   - uid: string (required) - unique user id
+//   - displayName: string (required) - user's name
+//   - email: string (required) - user's email
+//   - photoURL: string (optional) - user's photo
+//   - ratings: map (required) - { defense: number, passing: number, finishing: number }
+//   - language: string (required) - 'pt' | 'en' | 'xh'
+//   - createdAt: number (required) - timestamp
+//
+// Collection: matches
+// Document ID: matchId
+// Fields:
+//   - id: string (required)
+//   - date: number (required)
+//   - location: map (required) - { address: string, lat: number, lng: number }
+//   - price: number (required)
+//   - maxPlayers: number (required)
+//   - status: string (required) - 'open' | 'full' | 'finished' | 'cancelled'
+//   - organizerId: string (required)
+//   - description: string (optional)
+//   - scoreA: number (optional)
+//   - scoreB: number (optional)
+//
+// Collection: registrations
+// Document ID: regId
+// Fields:
+//   - matchId: string (required)
+//   - userId: string (required)
+//   - status: string (required) - 'confirmed' | 'waiting'
+//   - paid: boolean (required)
+//   - registeredAt: number (required)
+//
+// Collection: stats
+// Document ID: statId
+// Fields:
+//   - matchId: string (required)
+//   - playerId: string (required)
+//   - goals: number (required)
+//   - assists: number (required)
+//   - isMOTM: boolean (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "lazaroatalia80@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email == "lazaratala80@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidUser(data) {
+      return data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.ratings is map &&
+             data.ratings.defense is number && data.ratings.defense >= 1 && data.ratings.defense <= 5 &&
+             data.ratings.passing is number && data.ratings.passing >= 1 && data.ratings.passing <= 5 &&
+             data.ratings.finishing is number && data.ratings.finishing >= 1 && data.ratings.finishing <= 5 &&
+             (!('role' in data) || data.role in ['user', 'admin']) &&
+             (!('position' in data) || (data.position is string && data.position.size() < 50)) &&
+             (!('clubId' in data) || (data.clubId is string)) &&
+             (!('clubName' in data) || (data.clubName is string && data.clubName.size() < 100)) &&
+             (!('clubLogoURL' in data) || (data.clubLogoURL is string && data.clubLogoURL.size() < 500)) &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000)) &&
+             (!('accountStatus' in data) || (data.accountStatus in ['free', 'paid', 'active', 'pending', 'suspended'])) &&
+             (!('paidStatus' in data) || (data.paidStatus in ['paid', 'unpaid', 'pending'])) &&
+             (!('subscriptionStatus' in data) || (data.subscriptionStatus in ['active', 'pending', 'expired', 'none'])) &&
+             (!('subscriptionExpiresAt' in data) || (data.subscriptionExpiresAt is number)) &&
+             (!('lastPaymentAt' in data) || (data.lastPaymentAt is number)) &&
+             (!('lastPaymentType' in data) || (data.lastPaymentType is string)) &&
+             (!('hasLiveAccess' in data) || (data.hasLiveAccess is bool)) &&
+             (!('purchasedLiveMatchIds' in data) || (data.purchasedLiveMatchIds is list)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string)) &&
+             (!('canPostContent' in data) || (data.canPostContent is bool)) &&
+             (!('canPostNews' in data) || (data.canPostNews is bool)) &&
+             (!('communityLeagueId' in data) || (data.communityLeagueId is string));
+    }
+
+    function isValidMatch(data) {
+      return data.date is number &&
+             data.location is map && data.location.address is string && data.location.address.size() < 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000)) &&
+             data.price is number && data.price >= 0 &&
+             data.maxPlayers is number && data.maxPlayers > 0 &&
+             data.status in ['open', 'full', 'in_progress', 'finished', 'cancelled'] &&
+             (!('timer' in data) || data.timer is map) &&
+             (!('lineup' in data) || data.lineup is map) &&
+             (!('playerNames' in data) || data.playerNames is list) &&
+             (!('squadNames' in data) || data.squadNames is list) &&
+             (!('teamAPlayerNames' in data) || data.teamAPlayerNames is list) &&
+             (!('teamBPlayerNames' in data) || data.teamBPlayerNames is list) &&
+             (!('liveStream' in data) || data.liveStream is map) &&
+             (!('liveEvents' in data) || data.liveEvents is list) &&
+             (!('photos' in data) || data.photos is list);
+    }
+
+    function isValidRegistration(data) {
+      return data.matchId is string &&
+             data.userId is string &&
+             data.status in ['confirmed', 'waiting'] &&
+             data.paid is bool;
+    }
+
+    function isValidStat(data) {
+      return data.matchId is string &&
+             data.playerId is string &&
+             data.goals is number && data.goals >= 0 &&
+             data.assists is number && data.assists >= 0 &&
+             (!('yellowCards' in data) || (data.yellowCards is number && data.yellowCards >= 0)) &&
+             (!('redCards' in data) || (data.redCards is number && data.redCards >= 0)) &&
+             data.isMOTM is bool;
+    }
+
+    function isValidTransfer(data) {
+      return data.playerId is string &&
+             data.playerName is string &&
+             data.toClub is string &&
+             data.date is number;
+    }
+
+    function isValidClub(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('president' in data) || (data.president is string && data.president.size() < 100)) &&
+             (!('coach' in data) || (data.coach is string && data.coach.size() < 100)) &&
+             (!('foundedAt' in data) || (data.foundedAt is number)) &&
+             (!('location' in data) || (data.location is string && data.location.size() < 200)) &&
+             (!('league' in data) || (data.league is string && data.league.size() < 100)) &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             (!('logoURL' in data) || (data.logoURL is string && data.logoURL.size() < 1000)) &&
+             (!('playerIds' in data) || (data.playerIds is list)) &&
+             (!('players' in data) || (data.players is list)) &&
+             (!('playerRoster' in data) || (data.playerRoster is list)) &&
+             data.createdBy is string;
+    }
+
+    function isValidMatchPhoto(data) {
+      return data.matchId is string &&
+             data.url is string && data.url.size() > 0 &&
+             data.uploadedBy is string &&
+             data.uploadedByName is string &&
+             (!('caption' in data) || (data.caption is string && data.caption.size() < 500)) &&
+             data.createdAt is number;
+    }
+
+    function isValidCommunityNotification(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 3000 &&
+             data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
+             (!('authorId' in data) || data.authorId is string) &&
+             (!('authorPhoto' in data) || (data.authorPhoto is string && data.authorPhoto.size() < 1000)) &&
+             (!('category' in data) || data.category is string) &&
+             (!('priority' in data) || data.priority is string) &&
+             (!('likes' in data) || data.likes is number) &&
+             (!('likedBy' in data) || data.likedBy is list) &&
+             data.createdAt is number;
+    }
+
+    function isValidManualScorer(data) {
+      return data.playerName is string && data.playerName.size() > 0 && data.playerName.size() < 100 &&
+             data.goals is number && data.goals >= 0 &&
+             (!('assists' in data) || (data.assists is number && data.assists >= 0)) &&
+             (!('motmCount' in data) || (data.motmCount is number && data.motmCount >= 0)) &&
+             (!('yellowCards' in data) || (data.yellowCards is number && data.yellowCards >= 0)) &&
+             (!('redCards' in data) || (data.redCards is number && data.redCards >= 0)) &&
+             (!('clubName' in data) || (data.clubName is string && data.clubName.size() < 100)) &&
+             (!('clubLogoURL' in data) || (data.clubLogoURL is string && data.clubLogoURL.size() < 1000)) &&
+             (!('league' in data) || (data.league is string && data.league.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 1000)) &&
+             (!('matchesPlayed' in data) || (data.matchesPlayed is number && data.matchesPlayed >= 0)) &&
+             (!('createdBy' in data) || data.createdBy is string) &&
+             (!('createdByName' in data) || (data.createdByName is string && data.createdByName.size() < 100)) &&
+             data.createdAt is number;
+    }
+
+    function isValidComplaint(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 3000 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() <= 100 &&
+             data.userEmail is string &&
+             data.userId is string &&
+             data.status in ['pending', 'answered', 'resolved'] &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 50)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 50)) &&
+             (!('adminResponse' in data) || (data.adminResponse is string && data.adminResponse.size() <= 3000)) &&
+             (!('respondedAt' in data) || (data.respondedAt is number)) &&
+             (!('respondedBy' in data) || (data.respondedBy is string && data.respondedBy.size() <= 100)) &&
+             data.createdAt is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) &&
+                    (isAdmin() || (!('role' in request.resource.data) || request.resource.data.role == resource.data.role));
+    }
+
+    match /matches/{matchId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isValidMatch(request.resource.data) || isAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.organizerId || 
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photos'])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['liveStream']))
+      ) && isValidMatch(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.organizerId || isAdmin());
+    }
+
+    match /registrations/{regId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidRegistration(request.resource.data);
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.organizerId ||
+        isAdmin()
+      ) && isValidRegistration(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /stats/{statId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.organizerId ||
+        isAdmin()
+      ) && isValidStat(request.resource.data);
+      allow update: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.organizerId ||
+        isAdmin()
+      ) && isValidStat(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.type in ['invite', 'waiting_list_promotion', 'match_cancelled', 'payment_confirmed', 'subscription_active', 'live_ticket_unlocked', 'monthly_payment_pending', 'monthly_payment_confirmed', 'monthly_payment_rejected', 'subscription_suspended'] &&
+                      request.resource.data.status in ['pending', 'accepted', 'declined', 'read'];
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin()) &&
+                      request.resource.data.status in ['pending', 'accepted', 'declined', 'read'];
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /transfers/{transferId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.uid == request.resource.data.playerId || isAdmin()) && isValidTransfer(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /clubs/{clubId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidClub(request.resource.data) && (request.resource.data.createdBy == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy || 
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playerIds']))
+      ) && isValidClub(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
+    }
+
+    match /match_photos/{photoId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uploadedBy && isValidMatchPhoto(request.resource.data);
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.uploadedBy || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.uploadedBy || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.organizerId);
+    }
+
+    match /community_notifications/{notifId} {
+      allow read: if true;
+      allow create: if isValidCommunityNotification(request.resource.data);
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.authorId || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin() || !('authorId' in resource.data) || resource.data.authorId == '');
+    }
+
+    match /manual_scorers/{scorerId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidManualScorer(request.resource.data);
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin()) && isValidManualScorer(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
+    }
+
+    match /community_ads/{adId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.auth.uid == request.resource.data.createdBy || isAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'clicks'])
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
+    }
+
+    match /live_tickets/{ticketId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /community_leagues/{leagueId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.adminId || 
+        request.auth.uid == resource.data.adminUserId || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['licenseStatus', 'status', 'expiresAt', 'lastPaymentDate', 'lastPaymentRef', 'paymentMethod', 'confirmedByAdmin', 'confirmedAt', 'statusReason'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /license_payments/{paymentId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.adminId || request.auth.uid == resource.data.processedBy || isAdmin());
+      allow create: if isAuthenticated() && (request.auth.uid == request.resource.data.userId || request.auth.uid == request.resource.data.adminId || request.auth.uid == request.resource.data.processedBy || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /live_chat/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.matchId is string && request.resource.data.matchId.size() > 0 &&
+                    request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 300 &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.userName is string && request.resource.data.userName.size() > 0 && request.resource.data.userName.size() < 100 &&
+                    (!('userPhoto' in request.resource.data) || (request.resource.data.userPhoto is string && request.resource.data.userPhoto.size() < 1000)) &&
+                    (!('badge' in request.resource.data) || (request.resource.data.badge is string && request.resource.data.badge.size() < 50)) &&
+                    request.resource.data.createdAt is number;
+      allow update: if false;
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /complaints/{complaintId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidComplaint(request.resource.data);
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.uid == resource.data.userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+    }
+  }
+}

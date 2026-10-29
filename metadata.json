@@ -1,0 +1,5 @@
+{
+  "name": "Be-Lwezer",
+  "description": "Be-Lwezer: Gestão completa de ligas comunitárias, peladas, clubes, transmissões ao vivo e estatísticas táticas.",
+  "requestFramePermissions": ["geolocation"]
+}
